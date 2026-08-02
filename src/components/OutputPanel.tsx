@@ -60,7 +60,7 @@ export function OutputPanel({
           ? "border-success/30 bg-success/5"
           : isError
             ? "border-error/20 bg-error/5"
-            : "border-border bg-[#111]"
+            : "border-border bg-surface dark:bg-[#111]"
       } ${className}`}
     >
       <div className="flex items-center justify-between px-3 md:px-4 py-1.5 border-b border-border/50 bg-surface/60 backdrop-blur-sm">

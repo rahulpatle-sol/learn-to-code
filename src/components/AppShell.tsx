@@ -15,6 +15,7 @@ import { TestResultPanel } from "./TestResultPanel";
 import { AuthPromptModal } from "./AuthPromptModal";
 import { formatRustTestResult } from "@/lib/format-test-output";
 import { ThemeToggle } from "./ThemeToggle";
+import { Download, Upload } from "lucide-react";
 
 
 // Custom SVG Logo Icon
@@ -340,6 +341,53 @@ export function AppShell() {
       await saveProgressToServer(challengeId, isCompleted, code, !isBookmarked);
     }
   }, [selectedChallenge, code, status, requireAuth]);
+
+  const exportProgress = useCallback(async () => {
+    if (status !== "authenticated") return;
+    try {
+      const res = await fetch("/api/progress", { method: "PUT" });
+      if (res.ok) {
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `learn-to-code-progress-${new Date().toISOString().split("T")[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Export failed:", error);
+    }
+  }, [status]);
+
+  const importProgress = useCallback(async (file: File) => {
+    if (status !== "authenticated") return;
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.progress || !Array.isArray(data.progress)) {
+        alert("Invalid file format");
+        return;
+      }
+      const res = await fetch("/api/progress", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ progress: data.progress }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        alert(`Imported ${result.imported} challenges, skipped ${result.skipped}`);
+        // Reload progress
+        await loadProgressFromServer();
+      } else {
+        alert("Import failed");
+      }
+    } catch (error) {
+      console.error("Import failed:", error);
+      alert("Import failed: invalid file");
+    }
+  }, [status, loadProgressFromServer]);
 
   const handleRunCode = useCallback(async () => {
     if (!selectedChallenge || !requireAuth()) return;

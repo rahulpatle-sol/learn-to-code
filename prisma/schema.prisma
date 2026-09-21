@@ -88,6 +88,7 @@ model Challenge {
   instructions   String   @db.Text
   starterCode    String   @db.Text
   hint           String   @db.Text
+  hints          Json?    // Progressive hints array
   expectedOutput String?  @db.Text
   explanation    String?  @db.Text
   testCases      String?  @db.Text

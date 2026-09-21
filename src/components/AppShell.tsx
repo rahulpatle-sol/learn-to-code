@@ -13,9 +13,10 @@ import { CodeEditor } from "./CodeEditor";
 import { OutputPanel } from "./OutputPanel";
 import { TestResultPanel } from "./TestResultPanel";
 import { AuthPromptModal } from "./AuthPromptModal";
+import { HintsPanel } from "./HintsPanel";
 import { formatRustTestResult } from "@/lib/format-test-output";
 import { ThemeToggle } from "./ThemeToggle";
-import { Download, Upload, HelpCircle, Keyboard } from "lucide-react";
+import { Download, Upload, HelpCircle, Keyboard, Lightbulb } from "lucide-react";
 
 
 // Keyboard Shortcuts Help Modal
@@ -145,6 +146,11 @@ export function AppShell() {
   const [runningAction, setRunningAction] = useState<"run" | "test" | null>(null);
   const [testResult, setTestResult] = useState<TestRunResult | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [hintLevelsRevealed, setHintLevelsRevealed] = useState<Set<number>>(new Set());
+
+  const handleHintUsed = useCallback((level: number) => {
+    setHintLevelsRevealed(prev => new Set(prev).add(level));
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -955,6 +961,12 @@ export function AppShell() {
           `}
           >
             <ChallengePane challenge={selectedChallenge} />
+            {selectedChallenge.hints && selectedChallenge.hints.length > 0 && (
+              <HintsPanel
+                hints={selectedChallenge.hints}
+                onHintUsed={handleHintUsed}
+              />
+            )}
           </div>
 
           <div

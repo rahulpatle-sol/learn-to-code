@@ -5,6 +5,8 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Challenge } from "@/types/challenge";
 import { getGradingMode, isChallengeCorrect } from "@/lib/grading";
+import { TestRunResult } from "@/lib/test-cases/types";
+import { parseApiJson } from "@/lib/parse-api-response";
 import { Sidebar } from "./Sidebar";
 import { ChallengePane } from "./ChallengePane";
 import { CodeEditor } from "./CodeEditor";
@@ -114,6 +116,7 @@ export function AppShell() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [outputHeight, setOutputHeight] = useState(160);
   const [isDragging, setIsDragging] = useState(false);
+// add keyboard shotcut an close icon to  close output window 
 
   useEffect(() => {
     if (!isDragging) return;
@@ -746,6 +749,16 @@ export function AppShell() {
                   challengeGradingMode={getGradingMode(selectedChallenge)}
                   verified={runVerified}
                   className={isMobile ? "border-t-0 flex-1" : ""}
+                  onClose={() => {
+                    if (isMobile) {
+                      setActiveTab("editor");
+                    } else {
+                      setExecutionMode(null);
+                      setRunVerified(null);
+                      setTestResult(null);
+                      setOutput("");
+                    }
+                  }}
                 />
               )}
             </div>

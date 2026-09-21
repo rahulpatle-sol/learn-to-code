@@ -32,15 +32,17 @@ export async function GET(request: NextRequest) {
       select: {
         challengeId: true,
         completed: true,
+        bookmarked: true,
         code: true,
       }
     });
 
     // Convert to record for easier frontend usage
-    const progressMap: Record<number, { completed: boolean; code: string | null }> = {};
+    const progressMap: Record<number, { completed: boolean; bookmarked: boolean; code: string | null }> = {};
     progress.forEach(p => {
       progressMap[p.challengeId] = {
         completed: p.completed,
+        bookmarked: p.bookmarked,
         code: p.code,
       };
     });
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { challengeId, completed, code } = await request.json();
+    const { challengeId, completed, code, bookmarked } = await request.json();
 
     if (typeof challengeId !== 'number') {
       return NextResponse.json(
@@ -98,17 +100,20 @@ export async function POST(request: NextRequest) {
       },
       update: {
         completed: completed ?? false,
+        bookmarked: bookmarked ?? false,
         code: code ?? null,
       },
       create: {
         userId: session.user.id,
         challengeId,
         completed: completed ?? false,
+        bookmarked: bookmarked ?? false,
         code: code ?? null,
       },
       select: {
         challengeId: true,
         completed: true,
+        bookmarked: true,
         code: true,
       }
     });

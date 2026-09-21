@@ -51,10 +51,15 @@ export function AppShell() {
   const [completedChallenges, setCompletedChallenges] = useState<Set<number>>(
     new Set()
   );
+  const [bookmarkedChallenges, setBookmarkedChallenges] = useState<Set<number>>(
+    new Set()
+  );
   // Keep a ref to the latest completed set so the auto-save effect doesn't
   // re-run every time we create a new Set instance.
   const completedChallengesRef = useRef(completedChallenges);
   completedChallengesRef.current = completedChallenges;
+  const bookmarkedChallengesRef = useRef(bookmarkedChallenges);
+  bookmarkedChallengesRef.current = bookmarkedChallenges;
   const [savedCode, setSavedCode] = useState<Record<number, string>>({});
   const [showSidebar, setShowSidebar] = useState(true);
   const [isLoadingProgress, setIsLoadingProgress] = useState(true);
@@ -160,13 +165,17 @@ export function AppShell() {
       if (res.ok) {
         const data = await res.json();
         const completed = new Set<number>();
+        const bookmarked = new Set<number>();
         const codeMap: Record<number, string> = {};
         
         Object.entries(data.progress).forEach(([challengeId, progress]) => {
-          const p = progress as { completed?: boolean; code?: string | null };
+          const p = progress as { completed?: boolean; bookmarked?: boolean; code?: string | null };
           const id = parseInt(challengeId);
           if (p.completed) {
             completed.add(id);
+          }
+          if (p.bookmarked) {
+            bookmarked.add(id);
           }
           if (p.code) {
             codeMap[id] = p.code;
@@ -174,6 +183,7 @@ export function AppShell() {
         });
         
         setCompletedChallenges(completed);
+        setBookmarkedChallenges(bookmarked);
         setSavedCode(codeMap);
       } else if (res.status === 404 && retryCount === 0) {
         // User not found in database, try to sync from session
@@ -232,14 +242,14 @@ export function AppShell() {
     }
   }, [isLoadingProgress, isLoadingChallenges, selectedChallenge?.id, savedCode, code]);
 
-  const saveProgressToServer = async (challengeId: number, completed: boolean, code: string) => {
+  const saveProgressToServer = async (challengeId: number, completed: boolean, code: string, bookmarked?: boolean) => {
     if (status !== "authenticated") return false;
 
     try {
       const res = await fetch("/api/progress", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ challengeId, completed, code }),
+        body: JSON.stringify({ challengeId, completed, code, bookmarked }),
       });
 
       if (res.ok) {
@@ -280,7 +290,8 @@ export function AppShell() {
       // Save current code before switching (only for authenticated users)
       if (selectedChallenge && status === "authenticated") {
         const isCompleted = completedChallengesRef.current.has(selectedChallenge.id);
-        saveProgressToServer(selectedChallenge.id, isCompleted, code);
+        const isBookmarked = bookmarkedChallengesRef.current.has(selectedChallenge.id);
+        saveProgressToServer(selectedChallenge.id, isCompleted, code, isBookmarked);
       }
 
       setSelectedChallenge(challenge);
@@ -308,6 +319,27 @@ export function AppShell() {
     }
     return true;
   }, [status]);
+
+  const toggleBookmark = useCallback(async () => {
+    if (!selectedChallenge || !requireAuth()) return;
+
+    const challengeId = selectedChallenge.id;
+    const isBookmarked = bookmarkedChallengesRef.current.has(challengeId);
+    const updated = new Set(bookmarkedChallengesRef.current);
+
+    if (isBookmarked) {
+      updated.delete(challengeId);
+    } else {
+      updated.add(challengeId);
+    }
+
+    setBookmarkedChallenges(updated);
+
+    if (status === "authenticated") {
+      const isCompleted = completedChallengesRef.current.has(challengeId);
+      await saveProgressToServer(challengeId, isCompleted, code, !isBookmarked);
+    }
+  }, [selectedChallenge, code, status, requireAuth]);
 
   const handleRunCode = useCallback(async () => {
     if (!selectedChallenge || !requireAuth()) return;
@@ -369,7 +401,8 @@ export function AppShell() {
             setCompletedChallenges(updated);
 
             if (status === "authenticated") {
-              saveProgressToServer(selectedChallenge.id, true, code);
+              const isBookmarked = bookmarkedChallengesRef.current.has(selectedChallenge.id);
+              saveProgressToServer(selectedChallenge.id, true, code, isBookmarked);
             }
           }
         }
@@ -435,7 +468,8 @@ export function AppShell() {
           setCompletedChallenges(updated);
 
           if (status === "authenticated") {
-            saveProgressToServer(selectedChallenge.id, true, code);
+            const isBookmarked = bookmarkedChallengesRef.current.has(selectedChallenge.id);
+            saveProgressToServer(selectedChallenge.id, true, code, isBookmarked);
           }
         }
       } else if (data.success) {
@@ -447,7 +481,8 @@ export function AppShell() {
         setCompletedChallenges(updated);
 
         if (status === "authenticated") {
-          saveProgressToServer(selectedChallenge.id, true, code);
+          const isBookmarked = bookmarkedChallengesRef.current.has(selectedChallenge.id);
+          saveProgressToServer(selectedChallenge.id, true, code, isBookmarked);
         }
       } else {
         setRunVerified(false);
@@ -481,7 +516,8 @@ export function AppShell() {
 
     // Persist the reset to the server so it stays cleared across refreshes
     if (status === "authenticated") {
-      void saveProgressToServer(selectedChallenge.id, false, starter);
+      const isBookmarked = bookmarkedChallengesRef.current.has(selectedChallenge.id);
+      void saveProgressToServer(selectedChallenge.id, false, starter, isBookmarked);
     }
   }, [selectedChallenge, status]);
 
@@ -505,7 +541,8 @@ export function AppShell() {
       // Use ref to get latest completed state without causing this effect to re-run
       // every time a new Set is created in setCompletedChallenges.
       const isCompleted = completedChallengesRef.current.has(challengeId);
-      saveProgressToServer(challengeId, isCompleted, code);
+      const isBookmarked = bookmarkedChallengesRef.current.has(challengeId);
+      saveProgressToServer(challengeId, isCompleted, code, isBookmarked);
       // Optimistic local update (saveProgressToServer also does this on success)
       setSavedCode(prev => ({ ...prev, [challengeId]: code }));
     }, 1000);
@@ -634,7 +671,9 @@ export function AppShell() {
           challenges={challenges}
           selectedId={selectedChallenge.id}
           completedIds={completedChallenges}
+          bookmarkedIds={bookmarkedChallenges}
           onSelect={handleSelectChallenge}
+          onToggleBookmark={toggleBookmark}
           className={`
             transition-transform duration-300 ease-in-out z-50
             fixed inset-y-0 left-0 w-80 h-full border-r border-border

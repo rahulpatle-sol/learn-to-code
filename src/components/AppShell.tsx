@@ -15,8 +15,80 @@ import { TestResultPanel } from "./TestResultPanel";
 import { AuthPromptModal } from "./AuthPromptModal";
 import { formatRustTestResult } from "@/lib/format-test-output";
 import { ThemeToggle } from "./ThemeToggle";
-import { Download, Upload } from "lucide-react";
+import { Download, Upload, HelpCircle, Keyboard } from "lucide-react";
 
+
+// Keyboard Shortcuts Help Modal
+interface KeyboardShortcutsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps) {
+  if (!isOpen) return null;
+
+  const shortcuts = [
+    { keys: ["Ctrl", "Enter"], description: "Run code" },
+    { keys: ["Ctrl", "Shift", "Enter"], description: "Submit tests" },
+    { keys: ["Ctrl", "/"], description: "Toggle sidebar" },
+    { keys: ["Ctrl", "B"], description: "Toggle bookmark" },
+    { keys: ["Escape"], description: "Close modal / output panel" },
+    { keys: ["?"], description: "Show this help" },
+  ];
+
+  const isMac = typeof navigator !== "undefined" && navigator.platform.includes("Mac");
+  const formatKey = (key: string) => {
+    if (key === "Ctrl") return isMac ? "⌘" : "Ctrl";
+    if (key === "Shift") return isMac ? "⇧" : "Shift";
+    if (key === "Enter") return isMac ? "↵" : "Enter";
+    return key;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-surface dark:bg-[#161616] border border-border/80 rounded-xl shadow-xl w-full max-w-md mx-4 animate-in slide-in-from-bottom-4 duration-200">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Keyboard className="w-5 h-5" />
+            Keyboard Shortcuts
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1 rounded hover:bg-muted/50 text-muted hover:text-foreground transition-colors"
+            aria-label="Close"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+          {shortcuts.map((shortcut, idx) => (
+            <div key={idx} className="flex items-center justify-between py-2 px-3 rounded-lg bg-surface-hover/50">
+              <span className="text-sm text-foreground">{shortcut.description}</span>
+              <div className="flex items-center gap-1.5">
+                {shortcut.keys.map((key, kIdx) => (
+                  <span key={kIdx} className="flex items-center gap-1">
+                    <kbd className="px-2 py-1 text-[11px] font-mono font-medium bg-muted/50 border border-border/50 rounded text-muted">
+                      {formatKey(key)}
+                    </kbd>
+                    {kIdx < shortcut.keys.length - 1 && (
+                      <span className="text-[10px] text-muted/50">+</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+          <p className="text-[11px] text-muted/60 text-center pt-2">
+            {isMac ? "Mac: ⌘ = Command, ⇧ = Shift, ↵ = Return" : "Windows/Linux: Ctrl = Control"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Custom SVG Logo Icon
 const LogoIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
@@ -72,6 +144,7 @@ export function AppShell() {
   const [executionMode, setExecutionMode] = useState<"run" | "test" | null>(null);
   const [runningAction, setRunningAction] = useState<"run" | "test" | null>(null);
   const [testResult, setTestResult] = useState<TestRunResult | null>(null);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -545,6 +618,78 @@ export function AppShell() {
     }
   }, [code, selectedChallenge, status, requireAuth]);
 
+  // Keyboard shortcuts handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in input/textarea (except for Escape)
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+      
+      const isCtrl = e.ctrlKey || e.metaKey;
+      const isShift = e.shiftKey;
+
+      // Escape - close modals/output
+      if (e.key === "Escape") {
+        if (showShortcutsHelp) {
+          setShowShortcutsHelp(false);
+        } else if (showAuthPrompt) {
+          setShowAuthPrompt(false);
+        } else if (isProfileOpen) {
+          setIsProfileOpen(false);
+        } else if (executionMode === "test" && testResult && !isRunning) {
+          setExecutionMode(null);
+          setRunVerified(null);
+          setTestResult(null);
+          setOutput("");
+        } else if (showSidebar && isMobile) {
+          setShowSidebar(false);
+        }
+        return;
+      }
+
+      // Don't trigger other shortcuts when in input fields
+      if (isInput && e.key !== "?") return;
+
+      // Ctrl/Cmd + Enter - Run code
+      if (isCtrl && e.key === "Enter" && !isShift && selectedChallenge && !isRunning) {
+        e.preventDefault();
+        handleRunCode();
+        return;
+      }
+
+      // Ctrl/Cmd + Shift + Enter - Submit tests
+      if (isCtrl && isShift && e.key === "Enter" && selectedChallenge && !isRunning) {
+        e.preventDefault();
+        handleSubmitTests();
+        return;
+      }
+
+      // Ctrl/Cmd + / - Toggle sidebar
+      if (isCtrl && e.key === "/") {
+        e.preventDefault();
+        setShowSidebar(!showSidebar);
+        return;
+      }
+
+      // Ctrl/Cmd + B - Toggle bookmark
+      if (isCtrl && e.key === "b" && selectedChallenge && status === "authenticated") {
+        e.preventDefault();
+        toggleBookmark();
+        return;
+      }
+
+      // ? - Show shortcuts help
+      if (e.key === "?" && !isCtrl && !isShift && !isInput) {
+        e.preventDefault();
+        setShowShortcutsHelp(true);
+        return;
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedChallenge, isRunning, showSidebar, isMobile, showAuthPrompt, isProfileOpen, executionMode, testResult, status, handleRunCode, handleSubmitTests, toggleBookmark]);
+
   const handleResetCode = useCallback(() => {
     if (!selectedChallenge) return;
 
@@ -650,6 +795,14 @@ export function AppShell() {
           </div>
 
           <ThemeToggle />
+          <button
+            onClick={() => setShowShortcutsHelp(true)}
+            className="p-2 rounded-lg hover:bg-surface-hover transition-colors text-muted hover:text-foreground"
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            <HelpCircle className="w-4.5 h-4.5" />
+          </button>
 
           {session ? (
             <div className="relative">
@@ -878,6 +1031,10 @@ export function AppShell() {
       <AuthPromptModal
         open={showAuthPrompt}
         onClose={() => setShowAuthPrompt(false)}
+      />
+      <KeyboardShortcutsModal
+        isOpen={showShortcutsHelp}
+        onClose={() => setShowShortcutsHelp(false)}
       />
     </div>
   );

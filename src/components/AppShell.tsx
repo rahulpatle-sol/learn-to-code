@@ -686,6 +686,28 @@ export function AppShell() {
                       </div>
                     </div>
                     <button
+                      onClick={exportProgress}
+                      className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-muted hover:text-foreground hover:bg-surface transition-colors cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Export Progress
+                    </button>
+                    <label className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium text-muted hover:text-foreground hover:bg-surface transition-colors cursor-pointer">
+                      <Upload className="w-3.5 h-3.5" />
+                      Import Progress
+                      <input
+                        type="file"
+                        accept=".json"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) importProgress(file);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                    <hr className="my-1 border-border/30" />
+                    <button
                       onClick={() => signOut({ callbackUrl: "/auth/signin" })}
                       className="w-full text-left px-4 py-2 text-xs font-medium text-muted hover:text-foreground hover:bg-surface transition-colors cursor-pointer"
                     >
